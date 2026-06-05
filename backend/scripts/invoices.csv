@@ -1,0 +1,12 @@
+invoice_number,vendor_name,amount,date,is_blocked_vendor
+INV001,Tata Consultancy Services,15000,2025-03-15,0
+INV002,Reliance Industries,500,2025-04-20,0
+INV003,Infosys Limited,23000,2025-05-10,0
+INV004,Bharat Petroleum,0,2025-02-18,0                  
+INV005,Hindustan Unilever,8000,2026-12-01,0             
+INV006,Wipro Technologies,4500,2025-01-30,0
+INV007,HDFC Bank Supplies,-200,2025-03-22,0          
+INV008,Mahindra Logistics,12000,2025-04-05,1            
+INV009,Sun Pharma Vendors,99000,2025-06-11,0            
+INV010,Tata Consultancy Services,15000,2025-03-15,0     
+INV011,Fake Vendor Ltd,8000,2026-08-15,1                
