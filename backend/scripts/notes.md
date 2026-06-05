@@ -10,6 +10,7 @@ INV011 - vendor blocked AND future date (should be flagged)
 
 ## Output - validate_invoices.py
 
+```
 ========== Summary Report ==========
 Total invoices : 11
 Flagged invoices : 8
@@ -25,3 +26,4 @@ INV009 | Sun Pharma Vendors | Amount exceeds maximum limit
 INV010 | Tata Consultancy Services | Duplicate invoice
 INV011 | Fake Vendor Ltd | Invoice date is in the future, Vendor is blocked
 =====================================
+```
