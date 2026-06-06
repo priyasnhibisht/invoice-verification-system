@@ -27,3 +27,27 @@ INV010 | Tata Consultancy Services | Duplicate invoice
 INV011 | Fake Vendor Ltd | Invoice date is in the future, Vendor is blocked
 =====================================
 ```
+
+## File Type Detection and Reading
+
+### PDF Output - ASSIGNMENT-4.pdf
+```
+Reading ASSIGNMENT-4.pdf
+Page 1
+TCS-662(MACHINE LEARNING)
+ASSIGNMENT-4
+Q1. Explain the K-means clustering...
+(text extracted successfully)
+```
+
+### Excel Output - invoices_sample.xlsx
+```
+Reading invoices_sample.xlsx
+   invoice_number        vendor_name  amount       date  is_blocked_vendor
+0          INV001  Tata Consultancy   15000 2025-03-15                  0
+...
+(all 11 rows printed successfully)
+```
+
+### Image
+- Detection added, OCR to be implemented.
