@@ -50,4 +50,13 @@ Reading invoices_sample.xlsx
 ```
 
 ### Image
-- Detection added, OCR to be implemented.
+### OCR Output - test_invoice.jpg
+Invoice No. 12345
+Date: 16 June 2025
+Items: Eggshell Camisole Top, Cuban Collar Shirt, Floral Cotton Dress
+Total: $500
+Payment: Briard Bank, Account No. 123-456-7890
+
+### Note
+- OCR is not 100% accurate, slight errors near signatures/logos is normal
+- Will be cleaned up in later weeks

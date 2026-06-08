@@ -1,6 +1,8 @@
 import os
 import pdfplumber
 import pandas as pd
+import pytesseract
+from PIL import Image
 
 file_name = input("Enter file name (with extension):")
 
@@ -30,8 +32,11 @@ else:
         print(df)
     #Images
     elif extension in [".jpg", ".jpeg", ".png"]:
-        print(f"Reading {file_name}")
-        print("Image file detected. OCR processing will be implemented here.")
+        print(f"{file_name} is an image file.")
+        pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        image=Image.open(file_name)
+        text=pytesseract.image_to_string(image)
+        print(text)
     #Unknown
     else:
         print(f"Unknown file type: {extension}")
