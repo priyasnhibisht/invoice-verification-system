@@ -1,11 +1,14 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Depends
+from sqlalchemy.orm import Session
 import shutil, os, pandas as pd
 from datetime import datetime
+from db import get_db
+from models import Invoice
 
 router = APIRouter()
 
 @router.post("/upload")
-async def upload_invoice(file: UploadFile = File(...)):
+async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get_db)):
     temp_path = f"temp_{file.filename}"
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -14,7 +17,7 @@ async def upload_invoice(file: UploadFile = File(...)):
     extension = extension.lower()
 
     if extension in [".xlsx", ".xls"]:
-        result = validate_excel(temp_path)
+        result = validate_excel(temp_path, file.filename, db)
     else:
         result = {"error": "Only Excel supported right now"}
 
@@ -26,7 +29,7 @@ async def upload_invoice(file: UploadFile = File(...)):
     return result
 
 
-def validate_excel(filepath):
+def validate_excel(filepath, original_filename, db: Session):
     all_results = []
     seen_invoices = set()
 
@@ -86,14 +89,41 @@ def validate_excel(filepath):
             except:
                 errors.append("Invalid amount values")
 
+            status = "FLAGGED" if errors else "VALID"
+            flags_text = ", ".join(errors)
+            telephone = str(row.get("TELEPHONE_NUMBER", ""))
+
+            # Check if invoice already exists in DB
+            existing = db.query(Invoice).filter(
+                Invoice.invoice_number == invoice_num
+            ).first()
+
+            if existing:
+                existing.status = status
+                existing.flags = flags_text
+                existing.total_payable = total
+            else:
+                new_invoice = Invoice(
+                    invoice_number=invoice_num,
+                    telephone=telephone,
+                    sheet_name=sheet_name,
+                    total_payable=total,
+                    status=status,
+                    flags=flags_text,
+                    source_file=original_filename
+                )
+                db.add(new_invoice)
+
             all_results.append({
                 "sheet": sheet_name,
                 "invoice_number": invoice_num,
-                "telephone": str(row.get("TELEPHONE_NUMBER", "")),
+                "telephone": telephone,
                 "total_payable": total,
-                "status": "FLAGGED" if errors else "VALID",
+                "status": status,
                 "errors": errors
             })
+
+    db.commit()
 
     flagged = [r for r in all_results if r["status"] == "FLAGGED"]
     valid = [r for r in all_results if r["status"] == "VALID"]
