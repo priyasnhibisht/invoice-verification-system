@@ -93,7 +93,6 @@ def validate_excel(filepath, original_filename, db: Session):
             flags_text = ", ".join(errors)
             telephone = str(row.get("TELEPHONE_NUMBER", ""))
 
-            # Check if invoice already exists in DB
             existing = db.query(Invoice).filter(
                 Invoice.invoice_number == invoice_num
             ).first()
@@ -134,3 +133,21 @@ def validate_excel(filepath, original_filename, db: Session):
         "flagged": len(flagged),
         "results": all_results
     }
+
+
+@router.get("/")
+def get_all_invoices(db: Session = Depends(get_db)):
+    invoices = db.query(Invoice).all()
+    return invoices
+
+
+@router.get("/flagged")
+def get_flagged_invoices(db: Session = Depends(get_db)):
+    invoices = db.query(Invoice).filter(Invoice.status == "FLAGGED").all()
+    return invoices
+
+
+@router.get("/valid")
+def get_valid_invoices(db: Session = Depends(get_db)):
+    invoices = db.query(Invoice).filter(Invoice.status == "VALID").all()
+    return invoices
