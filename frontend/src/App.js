@@ -4,6 +4,7 @@ function App() {
   const [invoices, setInvoices] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("ALL");
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];
@@ -20,36 +21,30 @@ function App() {
 
     const data = await response.json();
     setInvoices(data.results);
-    setSummary({
-      total: data.total_invoices,
-      valid: data.valid,
-      flagged: data.flagged,
-    });
+    setSummary({ total: data.total_invoices, valid: data.valid, flagged: data.flagged });
     setLoading(false);
   };
 
+  const filtered = invoices.filter(inv => {
+    if (filter === "VALID") return inv.status === "VALID";
+    if (filter === "FLAGGED") return inv.status === "FLAGGED";
+    return true;
+  });
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "sans-serif" }}>
-      {/* Sidebar */}
-      <div style={{ width: 200, background: "#1a1a2e", padding: "1.5rem 1rem" }}>
-        <div style={{ color: "#fff", fontSize: 15, fontWeight: 500, marginBottom: "2rem" }}>
-          IVS Portal
-        </div>
-        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, padding: "8px 10px" }}>Dashboard</div>
-        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, padding: "8px 10px" }}>Invoices</div>
-        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, padding: "8px 10px" }}>Flagged</div>
+    <div style={{ minHeight: "100vh", background: "#f9f9f9", fontFamily: "sans-serif" }}>
+      {/* Header */}
+      <div style={{ background: "#1a1a2e", padding: "1rem 2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ color: "#fff", fontSize: 16, fontWeight: 500 }}>IVS Portal — ONGC Invoice Verification</div>
+        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>Admin</div>
       </div>
 
-      {/* Main */}
-      <div style={{ flex: 1, padding: "1.5rem", background: "#f9f9f9" }}>
-        <div style={{ fontSize: 18, fontWeight: 500, marginBottom: 4 }}>Dashboard</div>
-        <div style={{ fontSize: 13, color: "#888", marginBottom: "1.5rem" }}>ONGC Invoice Verification</div>
-
+      <div style={{ padding: "1.5rem 2rem" }}>
         {/* Stats */}
         {summary && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: "1.5rem" }}>
             <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 8, padding: "1rem" }}>
-              <div style={{ fontSize: 12, color: "#888" }}>Total</div>
+              <div style={{ fontSize: 12, color: "#888" }}>Total invoices</div>
               <div style={{ fontSize: 24, fontWeight: 500 }}>{summary.total}</div>
             </div>
             <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 8, padding: "1rem" }}>
@@ -71,21 +66,31 @@ function App() {
           {loading && <div style={{ marginTop: 8, color: "#888" }}>Processing...</div>}
         </div>
 
-        {/* Table */}
+        {/* Filter buttons */}
         {invoices.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {["ALL", "VALID", "FLAGGED"].map(f => (
+              <button key={f} onClick={() => setFilter(f)} style={{
+                padding: "4px 14px", borderRadius: 20, border: "1px solid #ddd", cursor: "pointer", fontSize: 13,
+                background: filter === f ? "#1a1a2e" : "#fff",
+                color: filter === f ? "#fff" : "#555"
+              }}>{f}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Table */}
+        {filtered.length > 0 && (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, background: "#fff", borderRadius: 8 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid #eee" }}>
-                <th style={{ padding: "10px", textAlign: "left", color: "#888", fontWeight: 400 }}>Invoice No.</th>
-                <th style={{ padding: "10px", textAlign: "left", color: "#888", fontWeight: 400 }}>Telephone</th>
-                <th style={{ padding: "10px", textAlign: "left", color: "#888", fontWeight: 400 }}>Sheet</th>
-                <th style={{ padding: "10px", textAlign: "left", color: "#888", fontWeight: 400 }}>Amount</th>
-                <th style={{ padding: "10px", textAlign: "left", color: "#888", fontWeight: 400 }}>Status</th>
-                <th style={{ padding: "10px", textAlign: "left", color: "#888", fontWeight: 400 }}>Issue</th>
+                {["Invoice No.", "Telephone", "Sheet", "Amount", "Status", "Issue"].map(h => (
+                  <th key={h} style={{ padding: "10px", textAlign: "left", color: "#888", fontWeight: 400 }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv, i) => (
+              {filtered.map((inv, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
                   <td style={{ padding: "10px" }}>{inv.invoice_number}</td>
                   <td style={{ padding: "10px" }}>{inv.telephone}</td>
