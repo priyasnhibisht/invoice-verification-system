@@ -1,5 +1,5 @@
 import { useState } from "react";
-
+{/*Main page*/}
 function App() {
   const [invoices, setInvoices] = useState([]);
   const [summary, setSummary] = useState(null);
