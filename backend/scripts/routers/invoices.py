@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy.orm import Session
-import shutil, os, pandas as pd
+import shutil, os, pandas as pd, pdfplumber, re
 from datetime import datetime
 from db import get_db
 from models import Invoice
@@ -18,8 +18,10 @@ async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get
 
     if extension in [".xlsx", ".xls"]:
         result = validate_excel(temp_path, file.filename, db)
+    elif extension == ".pdf":
+        result = validate_pdf(temp_path, file.filename, db)
     else:
-        result = {"error": "Only Excel supported right now"}
+        result = {"error": "Only Excel and PDF supported right now"}
 
     try:
         os.remove(temp_path)
@@ -123,6 +125,101 @@ def validate_excel(filepath, original_filename, db: Session):
             })
 
     db.commit()
+
+    flagged = [r for r in all_results if r["status"] == "FLAGGED"]
+    valid = [r for r in all_results if r["status"] == "VALID"]
+
+    return {
+        "total_invoices": len(all_results),
+        "valid": len(valid),
+        "flagged": len(flagged),
+        "results": all_results
+    }
+
+
+def validate_pdf(filepath, original_filename, db: Session):
+    all_results = []
+    errors = []
+
+    with pdfplumber.open(filepath) as pdf:
+        full_text = ""
+        for page in pdf.pages:
+            text = page.extract_text()
+            if text:
+                full_text += text + "\n"
+
+    # Extract bill number
+    bill_number = "UNKNOWN"
+    bill_match = re.search(r"Bill number\s+(\S+)", full_text)
+    if bill_match:
+        bill_number = bill_match.group(1)
+
+    # Extract bill date
+    date_match = re.search(r"Bill date\s+(\d{2}-\w+-\d{4})", full_text)
+    if date_match:
+        try:
+            bill_date = datetime.strptime(date_match.group(1), "%d-%b-%Y")
+            if bill_date > datetime.now():
+                errors.append("Bill date is in the future")
+        except:
+            errors.append("Invalid bill date format")
+    else:
+        errors.append("Bill date not found")
+
+    # Extract totals from text
+    amounts = re.findall(r"\d+\.\d{2}", full_text)
+    amounts = [float(a) for a in amounts]
+
+    # Extract grand total
+    total_match = re.search(r"Total\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", full_text)
+    if total_match:
+        try:
+            fixed_total = float(total_match.group(1))
+            sgst_total = float(total_match.group(2))
+            cgst_total = float(total_match.group(3))
+            grand_total = float(total_match.group(4))
+
+            expected = round(fixed_total + sgst_total + cgst_total, 2)
+            actual = round(grand_total, 2)
+
+            if abs(expected - actual) > 1:
+                errors.append(f"Grand total mismatch: expected {expected}, got {actual}")
+        except:
+            errors.append("Could not validate grand total")
+
+    status = "FLAGGED" if errors else "VALID"
+    flags_text = ", ".join(errors)
+
+    # Save to database
+    existing = db.query(Invoice).filter(
+        Invoice.invoice_number == bill_number
+    ).first()
+
+    if existing:
+        existing.status = status
+        existing.flags = flags_text
+    else:
+        new_invoice = Invoice(
+            invoice_number=bill_number,
+            telephone="N/A",
+            sheet_name="PDF",
+            total_payable=grand_total if total_match else 0,
+            status=status,
+            flags=flags_text,
+            source_file=original_filename
+        )
+        db.add(new_invoice)
+
+    db.commit()
+
+    all_results.append({
+        "sheet": "PDF",
+        "invoice_number": bill_number,
+        "telephone": "N/A",
+        "total_payable": grand_total if total_match else 0,
+        "status": status,
+        "errors": errors
+    })
 
     flagged = [r for r in all_results if r["status"] == "FLAGGED"]
     valid = [r for r in all_results if r["status"] == "VALID"]
