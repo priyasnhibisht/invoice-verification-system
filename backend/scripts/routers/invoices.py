@@ -1,6 +1,8 @@
 from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 import shutil, os, pandas as pd, pdfplumber, re
+import pytesseract
+from PIL import Image
 from datetime import datetime
 from db import get_db
 from models import Invoice
@@ -20,8 +22,10 @@ async def upload_invoice(file: UploadFile = File(...), db: Session = Depends(get
         result = validate_excel(temp_path, file.filename, db)
     elif extension == ".pdf":
         result = validate_pdf(temp_path, file.filename, db)
+    elif extension in [".png", ".jpg", ".jpeg"]:
+        result = validate_image(temp_path, file.filename, db)
     else:
-        result = {"error": "Only Excel and PDF supported right now"}
+        result = {"error": "Unsupported file type"}
 
     try:
         os.remove(temp_path)
@@ -148,13 +152,11 @@ def validate_pdf(filepath, original_filename, db: Session):
             if text:
                 full_text += text + "\n"
 
-    # Extract bill number
     bill_number = "UNKNOWN"
     bill_match = re.search(r"Bill number\s+(\S+)", full_text)
     if bill_match:
         bill_number = bill_match.group(1)
 
-    # Extract bill date
     date_match = re.search(r"Bill date\s+(\d{2}-\w+-\d{4})", full_text)
     if date_match:
         try:
@@ -166,11 +168,7 @@ def validate_pdf(filepath, original_filename, db: Session):
     else:
         errors.append("Bill date not found")
 
-    # Extract totals from text
-    amounts = re.findall(r"\d+\.\d{2}", full_text)
-    amounts = [float(a) for a in amounts]
-
-    # Extract grand total
+    grand_total = 0
     total_match = re.search(r"Total\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", full_text)
     if total_match:
         try:
@@ -190,7 +188,6 @@ def validate_pdf(filepath, original_filename, db: Session):
     status = "FLAGGED" if errors else "VALID"
     flags_text = ", ".join(errors)
 
-    # Save to database
     existing = db.query(Invoice).filter(
         Invoice.invoice_number == bill_number
     ).first()
@@ -203,7 +200,7 @@ def validate_pdf(filepath, original_filename, db: Session):
             invoice_number=bill_number,
             telephone="N/A",
             sheet_name="PDF",
-            total_payable=grand_total if total_match else 0,
+            total_payable=grand_total,
             status=status,
             flags=flags_text,
             source_file=original_filename
@@ -216,7 +213,88 @@ def validate_pdf(filepath, original_filename, db: Session):
         "sheet": "PDF",
         "invoice_number": bill_number,
         "telephone": "N/A",
-        "total_payable": grand_total if total_match else 0,
+        "total_payable": grand_total,
+        "status": status,
+        "errors": errors
+    })
+
+    flagged = [r for r in all_results if r["status"] == "FLAGGED"]
+    valid = [r for r in all_results if r["status"] == "VALID"]
+
+    return {
+        "total_invoices": len(all_results),
+        "valid": len(valid),
+        "flagged": len(flagged),
+        "results": all_results
+    }
+
+
+def validate_image(filepath, original_filename, db: Session):
+    all_results = []
+    errors = []
+
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    image = Image.open(filepath)
+    full_text = pytesseract.image_to_string(image)
+
+    invoice_num = "UNKNOWN"
+    bill_match = re.search(r"Invoice No[.:]\s*(\S+)", full_text, re.IGNORECASE)
+    if bill_match:
+        invoice_num = bill_match.group(1)
+
+    date_match = re.search(r"\d{2}\s\w+\s\d{4}", full_text)
+    if date_match:
+        try:
+            bill_date = datetime.strptime(date_match.group(), "%d %B %Y")
+            if bill_date > datetime.now():
+                errors.append("Invoice date is in the future")
+        except:
+            pass
+    else:
+        errors.append("Invoice date not found")
+
+    total = 0
+    total_match = re.search(r"Total\s+\$?([\d,]+\.?\d*)", full_text, re.IGNORECASE)
+    if total_match:
+        try:
+            total = float(total_match.group(1).replace(",", ""))
+            if total <= 0:
+                errors.append("Total amount is zero or negative")
+        except:
+            errors.append("Invalid total amount")
+    else:
+        errors.append("Total amount not found")
+
+    status = "FLAGGED" if errors else "VALID"
+    flags_text = ", ".join(errors)
+
+    existing = db.query(Invoice).filter(
+        Invoice.invoice_number == invoice_num
+    ).first()
+
+    if existing:
+        existing.status = status
+        existing.flags = flags_text
+        existing.total_payable = total
+    else:
+        new_invoice = Invoice(
+            invoice_number=invoice_num,
+            telephone="N/A",
+            sheet_name="IMAGE",
+            total_payable=total,
+            status=status,
+            flags=flags_text,
+            source_file=original_filename
+        )
+        db.add(new_invoice)
+
+    db.commit()
+
+    all_results.append({
+        "sheet": "IMAGE",
+        "invoice_number": invoice_num,
+        "telephone": "N/A",
+        "total_payable": total,
         "status": status,
         "errors": errors
     })
