@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.env
+*.xlsx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+temp_*
+
+# Node
+node_modules/
+build/
+
+# Virtual environment
+.venv/
+.venv-1/
+.venv-2/
